@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>文档全文检索</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>📄 文档全文检索</h1>
+    <div class="path-add">
+      <input id="folderInput" type="text" placeholder="文件夹路径，或点「选择目录」" style="flex:1">
+      <button id="pickBtn" class="ghost">选择目录</button>
+      <button id="addBtn">添加路径</button>
+      <button id="reloadBtn" class="ghost">重新加载</button>
+      <label class="ocr"><input type="checkbox" id="ocr" checked> 扫描件 OCR</label>
+    </div>
+    <div id="pathList" class="path-list"></div>
+    <div id="status" class="status"></div>
+  </header>
+
+  <section class="search">
+    <input id="kw" type="search" placeholder="输入关键词，如：开关  （回车或边输边搜）" autocomplete="off">
+    <span id="resultCount" class="count"></span>
+  </section>
+
+  <main>
+    <ul id="results" class="results"></ul>
+    <div id="empty" class="empty">先在上方添加文件夹路径，再输入关键词开始搜索。</div>
+  </main>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-bar">
+      <span id="modalTitle"></span>
+      <button id="closeModal" class="ghost">✕ 关闭 (Esc)</button>
+    </div>
+    <iframe id="frame" class="frame"></iframe>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

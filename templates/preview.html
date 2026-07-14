@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title }}</title>
+  <style>
+    body { font-family: -apple-system, "Microsoft YaHei", sans-serif; margin: 24px auto; max-width: 880px; line-height: 1.75; color: #1f2329; padding: 0 20px 60px; }
+    h1,h2,h3 { line-height: 1.4; }
+    img { max-width: 100%; }
+    table { border-collapse: collapse; }
+    td, th { border: 1px solid #ddd; padding: 4px 8px; }
+    mark { background: #ffe66d; border-radius: 3px; padding: 0 1px; }
+    pre { background: #f7f8fa; padding: 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div id="content">{{ body_html|safe }}</div>
+  <script>
+    (function () {
+      var kw = new URLSearchParams(location.search).get('kw') || '';
+      if (!kw) return;
+      var lower = kw.toLowerCase();
+      var re = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      var esc = function (s) {
+        return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+      };
+      function walk(root) {
+        var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+        var nodes = [], n;
+        while ((n = walker.nextNode())) nodes.push(n);
+        nodes.forEach(function (node) {
+          var p = node.parentNode;
+          if (!p) return;
+          var tag = p.nodeName;
+          if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'MARK') return;
+          if (!node.nodeValue || node.nodeValue.toLowerCase().indexOf(lower) < 0) return;
+          var span = document.createElement('span');
+          span.innerHTML = esc(node.nodeValue).replace(re, function (m) { return '<mark>' + m + '</mark>'; });
+          p.replaceChild(span, node);
+        });
+        var first = document.querySelector('mark');
+        if (first) first.scrollIntoView({ block: 'center' });
+      }
+      walk(document.getElementById('content'));
+    })();
+  </script>
+</body>
+</html>

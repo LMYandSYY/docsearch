@@ -1,0 +1,7 @@
+Flask>=3.0
+PyMuPDF>=1.24
+python-docx>=1.1
+mammoth>=1.6
+olefile>=0.46
+pytesseract>=0.3.10
+Pillow>=10.0
