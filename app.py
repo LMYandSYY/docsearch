@@ -21,7 +21,7 @@ from indexer import Indexer
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 PORT = 8765
-SUPPORTED_EXTS = {".pdf", ".docx", ".doc", ".txt", ".md", ".markdown", ".csv", ".log"}
+SUPPORTED_EXTS = extractor.SUPPORTED  # 与 extractor.SUPPORTED 同源，避免两处不同步
 SETTINGS_FILE = os.path.join(BASE, "settings.json")
 
 app = Flask(__name__)
@@ -149,17 +149,15 @@ def preview():
     if ext == ".pdf":
         # 浏览器原生渲染 PDF，直接返回文件
         return send_file(path)
-    if ext in (".docx", ".doc"):
-        try:
-            body = extractor.to_preview_html(path)
-        except Exception as e:  # noqa: BLE001
-            body = "<p>预览失败：" + html_mod.escape(repr(e)) + "</p>"
-        return render_template("preview.html", title=os.path.basename(path), body_html=body, kw=kw)
-    if ext in (".txt", ".md", ".markdown", ".csv", ".log"):
-        text = extractor.extract_text(path)[0]
-        body = "<pre style='white-space:pre-wrap;word-break:break-word'>" + html_mod.escape(text) + "</pre>"
-        return render_template("preview.html", title=os.path.basename(path), body_html=body, kw=kw)
-    return send_file(path, as_attachment=True)
+    if ext not in SUPPORTED_EXTS:
+        # 非支持格式直接下载，避免空预览
+        return send_file(path, as_attachment=True)
+    # 其余支持格式统一走 to_preview_html（docx/doc 富文本，其它回退纯文本 <pre>）
+    try:
+        body = extractor.to_preview_html(path)
+    except Exception as e:  # noqa: BLE001
+        body = "<p>预览失败：" + html_mod.escape(repr(e)) + "</p>"
+    return render_template("preview.html", title=os.path.basename(path), body_html=body, kw=kw)
 
 
 def _open_browser():

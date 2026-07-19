@@ -13,7 +13,7 @@ import threading
 import extractor
 
 # 提取逻辑版本：升级提取代码时递增，旧缓存自动失效、重新解析
-CACHE_VERSION = 3
+CACHE_VERSION = 4
 # 片段上下文长度（命中词前后取多少字符）；搜索去重也用它对齐
 SNIPPET_CTX = 80
 
@@ -104,7 +104,9 @@ class Indexer:
             for root, dirs, files in os.walk(folder):
                 dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__MACOSX"]
                 for fn in files:
-                    if fn.startswith("."):
+                    # 跳过隐藏文件；跳过 ~$ 开头的 Office 临时锁文件（owner file，
+                    # Word/Excel/PPT 打开文档时生成，非文档内容，读取必报错）
+                    if fn.startswith(".") or fn.startswith("~$"):
                         continue
                     if os.path.splitext(fn)[1].lower() in exts:
                         found.append(os.path.join(root, fn))

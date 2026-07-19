@@ -2,7 +2,8 @@
 import os
 import unittest
 
-from helpers import make_tmpdir, write_txt, make_docx, make_pdf, make_pdf_cjk
+from helpers import (make_tmpdir, write_txt, make_docx, make_pdf, make_pdf_cjk,
+                     make_xlsx, make_pptx, make_epub, make_rtf, make_odt)
 import extractor
 
 
@@ -38,6 +39,66 @@ class TestExtractor(unittest.TestCase):
         text, _ = extractor.extract_text(p)
         self.assertIn("变电站", text)
         self.assertIn("甲", text)
+
+    def test_xlsx(self):
+        d = make_tmpdir()
+        p = os.path.join(d, "a.xlsx")
+        make_xlsx(p, [["项目", "值"], ["变电站", "甲"]])
+        text, meta = extractor.extract_text(p)
+        self.assertIn("变电站", text)
+        self.assertIn("甲", text)
+        self.assertEqual(meta["ext"], ".xlsx")
+
+    def test_pptx(self):
+        d = make_tmpdir()
+        p = os.path.join(d, "a.pptx")
+        make_pptx(p, ["封面页", "电网开关说明"])
+        text, meta = extractor.extract_text(p)
+        self.assertIn("开关", text)
+        self.assertEqual(meta["ext"], ".pptx")
+
+    def test_epub(self):
+        d = make_tmpdir()
+        p = os.path.join(d, "a.epub")
+        make_epub(p, ["第一章 电网", "第二章 开关"])
+        text, meta = extractor.extract_text(p)
+        self.assertIn("电网", text)
+        self.assertIn("开关", text)
+        self.assertEqual(meta["ext"], ".epub")
+
+    def test_rtf(self):
+        d = make_tmpdir()
+        p = os.path.join(d, "a.rtf")
+        make_rtf(p, "the main SWITCH is here")
+        text, meta = extractor.extract_text(p)
+        self.assertIn("SWITCH", text)
+        self.assertEqual(meta["ext"], ".rtf")
+
+    def test_odt(self):
+        d = make_tmpdir()
+        p = os.path.join(d, "a.odt")
+        make_odt(p, "电网开关ODF测试")
+        text, meta = extractor.extract_text(p)
+        self.assertIn("开关", text)
+        self.assertEqual(meta["ext"], ".odt")
+
+    def test_json(self):
+        d = make_tmpdir()
+        p = os.path.join(d, "a.json")
+        write_txt(p, '{"key": "开关状态", "v": 1}')
+        text, meta = extractor.extract_text(p)
+        self.assertIn("开关", text)
+        self.assertEqual(meta["ext"], ".json")
+
+    def test_html_strip_tags(self):
+        d = make_tmpdir()
+        p = os.path.join(d, "a.html")
+        write_txt(p, "<html><body><p>电网<b>开关</b></p></body></html>")
+        text, meta = extractor.extract_text(p)
+        self.assertIn("电网", text)
+        self.assertIn("开关", text)
+        self.assertNotIn("<b>", text)  # 标签应被剥离
+        self.assertEqual(meta["ext"], ".html")
 
     def test_pdf_latin(self):
         d = make_tmpdir()

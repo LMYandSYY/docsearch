@@ -82,6 +82,14 @@ class TestIndexer(unittest.TestCase):
         idx.load_folders([d], {".txt"})
         self.assertEqual(len(idx.search("电网")), 2)
 
+    def test_skip_office_lock_files(self):
+        # ~$ 开头是 Office 打开文档时的临时锁文件（owner file），应被跳过、不触发解析异常
+        d = build_files({"a.txt": "电网开关", "~$temp.docx": "无关占位"})
+        idx = indexer.Indexer(os.path.join(d, "c.db"))
+        _, stats = idx.load_folders([d], {".txt", ".docx"})
+        self.assertEqual([x["name"] for x in idx.search("电网")], ["a.txt"])
+        self.assertEqual(stats["errors"], [])  # ~$ 文件不再进入解析
+
     def test_invalid_folder_skipped(self):
         d = build_files({"a.txt": "电网"})
         idx = indexer.Indexer(os.path.join(d, "c.db"))

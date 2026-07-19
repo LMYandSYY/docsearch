@@ -8,6 +8,11 @@
 
 - 支持 **PDF**：文本型 PDF 直接提取，扫描件可启用 **OCR**。
 - 支持 **Word**：`.docx` 和 `.doc`。
+- 支持 **Excel/PowerPoint**：`.xlsx`、`.pptx`（纯 Python 库）；老格式 `.xls`、`.ppt` 需 LibreOffice。
+- 支持 **电子书/富文本**：`.epub`、`.rtf`。
+- 支持 **OpenDocument**：`.odt`、`.ods`、`.odp`。
+- 支持 **代码与配置**：`.py`、`.js`、`.ts`、`.java`、`.go`、`.cpp`、`.css`、`.sql`、`.json`、`.yaml`/`.yml`、`.xml`。
+- 支持 **网页/标记**：`.html`、`.htm`（去标签后检索）。
 - 支持 **文本文件**：`.txt`、`.md`、`.markdown`、`.csv`、`.log`。
 - 支持 **多路径加载**：可以同时添加多个文件夹，统一检索。
 - 支持 **中文关键词搜索**：按子串匹配，结果按命中次数排序。

@@ -10,8 +10,27 @@ import re
 import shutil
 import subprocess
 import tempfile
+import zipfile
 
-SUPPORTED = {".pdf", ".docx", ".doc", ".txt", ".md", ".markdown", ".csv", ".log"}
+# 支持的文件后缀（小写、含点）。提取逻辑按 ext 分发，见 extract_text。
+SUPPORTED = {
+    ".pdf", ".docx", ".doc",
+    ".txt", ".md", ".markdown", ".csv", ".log",
+    ".json", ".yaml", ".yml", ".xml", ".sql",
+    ".js", ".py", ".cpp", ".java", ".css", ".go", ".ts",
+    ".html", ".htm",
+    ".xlsx", ".pptx",
+    ".rtf", ".epub",
+    ".odt", ".ods", ".odp",
+    ".xls", ".ppt",
+}
+
+# 纯文本类：直接读文件，复用 _textfile 的多编码兜底（utf-8→gb18030→big5→latin-1）
+TEXT_EXTS = {
+    ".txt", ".md", ".markdown", ".csv", ".log",
+    ".json", ".yaml", ".yml", ".xml", ".sql",
+    ".js", ".py", ".cpp", ".java", ".css", ".go", ".ts",
+}
 
 
 def extract_text(path, ocr_pages=True):
@@ -28,7 +47,23 @@ def extract_text(path, ocr_pages=True):
             text = _docx_text(path)
         elif ext == ".doc":
             text = _doc_text(path)
-        elif ext in (".txt", ".md", ".markdown", ".csv", ".log"):
+        elif ext == ".xlsx":
+            text = _xlsx_text(path)
+        elif ext == ".xls":
+            text = _xls_text(path)
+        elif ext == ".pptx":
+            text = _pptx_text(path)
+        elif ext == ".ppt":
+            text = _ppt_text(path)
+        elif ext == ".epub":
+            text = _epub_text(path)
+        elif ext == ".rtf":
+            text = _rtf_text(path)
+        elif ext in (".odt", ".ods", ".odp"):
+            text = _odf_text(path)
+        elif ext in (".html", ".htm"):
+            text = _strip_tags(_textfile(path))
+        elif ext in TEXT_EXTS:
             text = _textfile(path)
         else:
             errors.append("不支持的格式: " + ext)
@@ -181,20 +216,28 @@ def _clean_doc_text(text):
     return s.strip()
 
 
-def _doc_to_docx(path):
+def _soffice_convert(path, to_ext):
+    """用 LibreOffice 把任意文档转成指定格式（docx/xlsx/pptx…），返回输出路径或 None。
+
+    供 .doc/.xls/.ppt 等老格式兜底：先转成对应新格式，再用纯 Python 库读取。
+    """
     soffice = shutil.which("soffice") or shutil.which("libreoffice")
     if not soffice:
         return None
     outdir = tempfile.mkdtemp(prefix="docconv_")
     try:
         subprocess.run(
-            [soffice, "--headless", "--convert-to", "docx", "--outdir", outdir, path],
+            [soffice, "--headless", "--convert-to", to_ext, "--outdir", outdir, path],
             check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=180,
         )
     except Exception:
         return None
-    out = os.path.join(outdir, os.path.splitext(os.path.basename(path))[0] + ".docx")
+    out = os.path.join(outdir, os.path.splitext(os.path.basename(path))[0] + "." + to_ext)
     return out if os.path.isfile(out) else None
+
+
+def _doc_to_docx(path):
+    return _soffice_convert(path, "docx")
 
 
 # ----------------------------- 纯文本 ----------------------------- #
@@ -209,6 +252,110 @@ def _textfile(path):
     return ""
 
 
+# ----------------------------- 表格 / 演示 ----------------------------- #
+
+def _xlsx_text(path):
+    """.xlsx：读所有 sheet 的单元格值；data_only=True 让公式取计算结果。"""
+    import openpyxl
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    parts = []
+    try:
+        for ws in wb.worksheets:
+            for row in ws.iter_rows(values_only=True):
+                for v in row:
+                    if v is None:
+                        continue
+                    s = str(v).strip()
+                    if s:
+                        parts.append(s)
+    finally:
+        wb.close()
+    return "\n".join(parts)
+
+
+def _xls_text(path):
+    """老 .xls：优先 LibreOffice 转 xlsx 再读；转换不可用返回空串。"""
+    xlsx_path = _soffice_convert(path, "xlsx")
+    if xlsx_path:
+        try:
+            return _xlsx_text(xlsx_path)
+        except Exception:
+            return ""
+    return ""
+
+
+def _pptx_text(path):
+    """.pptx：读所有幻灯片里文本框的文字。"""
+    from pptx import Presentation
+    prs = Presentation(path)
+    parts = []
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if getattr(shape, "has_text_frame", False):
+                t = shape.text_frame.text
+                if t and t.strip():
+                    parts.append(t)
+    return "\n".join(parts)
+
+
+def _ppt_text(path):
+    """老 .ppt：优先 LibreOffice 转 pptx 再读；转换不可用返回空串。"""
+    pptx_path = _soffice_convert(path, "pptx")
+    if pptx_path:
+        try:
+            return _pptx_text(pptx_path)
+        except Exception:
+            return ""
+    return ""
+
+
+# ----------------------------- 富文本 / 电子书 / ODF ----------------------------- #
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_tags(text):
+    """粗略去 HTML/XML 标签并折叠多余空白，便于全文检索（不追求还原排版）。"""
+    text = _TAG_RE.sub(" ", text)
+    text = text.replace("&nbsp;", " ")
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _rtf_text(path):
+    """.rtf：用 striprtf 转纯文本（rtf 本身是文本，可直接走多编码读取）。"""
+    from striprtf.striprtf import rtf_to_text
+    return rtf_to_text(_textfile(path)).strip()
+
+
+def _zip_read_texts(path, suffixes):
+    """从 zip 里读出所有名字以给定后缀结尾的条目，按 utf-8(容错) 解码并拼接。"""
+    parts = []
+    with zipfile.ZipFile(path) as zf:
+        for name in zf.namelist():
+            low = name.lower()
+            if any(low.endswith(s) for s in suffixes):
+                try:
+                    parts.append(zf.read(name).decode("utf-8", errors="ignore"))
+                except Exception:
+                    continue
+    return "\n".join(parts)
+
+
+def _epub_text(path):
+    """.epub：本质 zip + xhtml，读出各章节正文并去标签。"""
+    return _strip_tags(_zip_read_texts(path, (".xhtml", ".html", ".htm")))
+
+
+def _odf_text(path):
+    """.odt/.ods/.odp：zip 里的 content.xml，去标签取正文。"""
+    try:
+        with zipfile.ZipFile(path) as zf:
+            raw = zf.read("content.xml").decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+    return _strip_tags(raw)
+
+
 # ----------------------------- 预览 ----------------------------- #
 
 def docx_to_html(path):
@@ -219,7 +366,11 @@ def docx_to_html(path):
 
 
 def to_preview_html(path):
-    """供预览页使用的 HTML 正文。"""
+    """供预览页使用的 HTML 正文。
+
+    docx/doc 给富文本预览；其余支持格式（xlsx/pptx/epub/rtf/odt/代码等）
+    一律回退为提取出的纯文本 <pre>，同样可高亮命中词。
+    """
     ext = os.path.splitext(path)[1].lower()
     if ext == ".docx":
         return docx_to_html(path)
@@ -235,4 +386,8 @@ def to_preview_html(path):
         if text.strip():
             return "<pre style='white-space:pre-wrap;word-break:break-word'>" + html.escape(text) + "</pre>"
         return "<p>无法读取此 .doc 文件的内容，可尝试另存为 .docx。</p>"
-    return "<p>暂不支持预览此格式。</p>"
+    # 其余格式：提取纯文本后 <pre> 预览
+    text, _ = extract_text(path)
+    if text.strip():
+        return "<pre style='white-space:pre-wrap;word-break:break-word'>" + html.escape(text) + "</pre>"
+    return "<p>无法提取该文件的文本内容。</p>"

@@ -5,3 +5,6 @@ mammoth>=1.6
 olefile>=0.46
 pytesseract>=0.3.10
 Pillow>=10.0
+openpyxl>=3.1
+python-pptx>=0.6
+striprtf>=0.0

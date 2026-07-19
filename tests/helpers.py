@@ -62,3 +62,60 @@ def make_pdf_cjk(path, text):
     doc.save(path)
     doc.close()
     return True
+
+
+def make_xlsx(path, rows):
+    """rows: 二维列表，写入活动 sheet。"""
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    for r, row in enumerate(rows, start=1):
+        for c, val in enumerate(row, start=1):
+            ws.cell(row=r, column=c, value=val)
+    wb.save(path)
+
+
+def make_pptx(path, texts):
+    """texts: 每个元素生成一页，作为该页文本框内容。"""
+    from pptx import Presentation
+    prs = Presentation()
+    blank = prs.slide_layouts[6]  # 空白版式
+    for t in texts:
+        slide = prs.slides.add_slide(blank)
+        box = slide.shapes.add_textbox(0, 0, 3000000, 500000)
+        box.text_frame.text = t
+    prs.save(path)
+
+
+def make_epub(path, chapters):
+    """chapters: list[str]，每段写成一章 xhtml 正文（utf-8）。"""
+    import zipfile
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("mimetype", "application/epub+zip")
+        for i, body in enumerate(chapters):
+            xhtml = ('<?xml version="1.0" encoding="utf-8"?>\n'
+                     '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>%s</p></body></html>') % body
+            zf.writestr("OEBPS/ch%d.xhtml" % i, xhtml)
+
+
+def make_rtf(path, text):
+    """造最小 rtf；为避开中文转义复杂度，正文建议用 ASCII。"""
+    safe = text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("{\\rtf1\\ansi " + safe + "}")
+
+
+def make_odt(path, text):
+    """造最小 odt：zip + content.xml（含一段文本）。"""
+    import zipfile
+    content_xml = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<office:document-content '
+        'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+        'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">'
+        '<office:body><office:text><text:p>%s</text:p></office:text></office:body>'
+        '</office:document-content>'
+    ) % text
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("mimetype", "application/vnd.oasis.opendocument.text")
+        zf.writestr("content.xml", content_xml)

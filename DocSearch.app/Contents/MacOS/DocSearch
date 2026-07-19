@@ -28,8 +28,8 @@ if /usr/bin/curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$PORT/"; then
   exit 0
 fi
 
-# 首次运行：复用 run.sh 的逻辑建 venv、装依赖
-if [ ! -x ".venv/bin/python" ]; then
+# 首次运行：复用 run.sh 的逻辑建 venv、装依赖（含 shebang 失效识别）
+if [ ! -x ".venv/bin/python" ] || ! .venv/bin/python -c 'import sys' >/dev/null 2>&1; then
   notify "首次启动：正在准备 Python 环境，请稍候（仅一次）"
   {
     echo "===== $(date '+%F %T') 首次运行：创建虚拟环境并安装依赖 ====="
