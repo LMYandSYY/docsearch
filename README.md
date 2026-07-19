@@ -63,6 +63,12 @@ cd /d docsearch
 run.bat
 ```
 
+想要桌面 / 开始菜单快捷方式，运行一次（在桌面与「开始菜单 - 程序」各生成「文档检索工具」；再对其右键「固定到"开始"屏幕」即可加入开始菜单顶部的「已固定」网格）：
+
+```bat
+python create_shortcut.py
+```
+
 启动成功后会看到类似输出：
 
 ```text
@@ -109,6 +115,7 @@ docsearch/
 ├── tests/            # 单元测试
 ├── requirements.txt  # Python 依赖
 ├── run.sh            # macOS / Linux 启动脚本
+├── create_shortcut.py # 生成桌面启动快捷方式（Windows）
 ├── run.bat           # Windows 启动脚本
 ├── DocSearch.app     # macOS 双击启动（放在项目根目录）
 └── README.md         # 项目说明
