@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# DocSearch.app 启动脚本 —— 包住项目原有的 run.sh 链路。
+# 用法：把整个 DocSearch.app 放在项目根目录下，双击即可。
+set -e
+export PYTHONUTF8=1
+
+# 定位项目根目录：bundle 位于项目根下，回溯三级
+# MacOS → Contents → DocSearch.app → 项目根
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"          # .../DocSearch.app/Contents/MacOS
+APP_ROOT="$(cd "$SELF_DIR/../../.." && pwd)"       # 项目根（含 app.py / .venv）
+
+PORT=8765
+LOG="$APP_ROOT/run.log"
+TITLE="DocSearch"
+notify() { /usr/bin/osascript -e "display notification \"$1\" with title \"$TITLE\"" 2>/dev/null || true; }
+
+# 放错位置：app.py 不在回溯到的根目录
+if [ ! -f "$APP_ROOT/app.py" ]; then
+  notify "未找到 app.py，请把 DocSearch.app 放回项目根目录"
+  exit 1
+fi
+
+cd "$APP_ROOT"
+
+# 服务已在运行 → 直接开浏览器，瞬退（避免端口占用冲突）
+if /usr/bin/curl -s -o /dev/null --max-time 2 "http://127.0.0.1:$PORT/"; then
+  /usr/bin/open "http://127.0.0.1:$PORT/"
+  exit 0
+fi
+
+# 首次运行：复用 run.sh 的逻辑建 venv、装依赖
+if [ ! -x ".venv/bin/python" ]; then
+  notify "首次启动：正在准备 Python 环境，请稍候（仅一次）"
+  {
+    echo "===== $(date '+%F %T') 首次运行：创建虚拟环境并安装依赖 ====="
+    python3 -m venv .venv
+    .venv/bin/python -m pip install --upgrade pip
+    .venv/bin/pip install -r requirements.txt
+    echo "===== $(date '+%F %T') 依赖安装完成 ====="
+  } >>"$LOG" 2>&1
+fi
+
+# 前台启动 Flask 作为 .app 主进程；app.py 内部会在 1.2s 后自动开浏览器
+# 输出重定向到 run.log（已被 .gitignore 忽略）
+exec .venv/bin/python app.py >>"$LOG" 2>&1

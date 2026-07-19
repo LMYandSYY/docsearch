@@ -45,6 +45,15 @@ bash run.sh
 
 首次启动时，脚本会自动创建 **.venv** 并安装依赖。
 
+#### macOS 一键启动
+
+项目根目录下有 **DocSearch.app**，双击即可：
+
+- 首次启动自动准备 **.venv** 并打开浏览器（地址 `http://127.0.0.1:8765`）。
+- 服务在后台运行；再次双击若服务已存在，则只聚焦浏览器，不重复启动。
+- 运行日志写入项目根的 `run.log`；停止服务可在「活动监视器」中结束 `Python` 进程，或执行 `pkill -f app.py`。
+- 注意：`DocSearch.app` 需放在**项目根目录**下才能找到 `app.py` 与 `.venv`。
+
 ### Windows
 
 双击 `run.bat`，或在命令行执行：
@@ -101,6 +110,7 @@ docsearch/
 ├── requirements.txt  # Python 依赖
 ├── run.sh            # macOS / Linux 启动脚本
 ├── run.bat           # Windows 启动脚本
+├── DocSearch.app     # macOS 双击启动（放在项目根目录）
 └── README.md         # 项目说明
 ```
 
