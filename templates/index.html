@@ -28,8 +28,17 @@
   <main>
     <ul id="results" class="results"></ul>
     <div id="empty" class="empty">先在上方添加文件夹路径，再输入关键词开始搜索。</div>
+    <section id="semanticSection" class="semantic hidden">
+      <div class="sem-head">
+        <h2>语义相关</h2>
+        <span id="semStatus" class="meta"></span>
+      </div>
+      <ul id="semResults" class="results"></ul>
+      <div id="semEmpty" class="empty"></div>
+    </section>
   </main>
 
+  <div id="toast" class="toast hidden"></div>
   <div id="modal" class="modal hidden">
     <div class="modal-bar">
       <span id="modalTitle"></span>

@@ -118,5 +118,26 @@ class TestIndexer(unittest.TestCase):
         self.assertEqual(len(idx.search("电网")), 1)
 
 
+class TestCorpus(unittest.TestCase):
+    def test_corpus_snapshot(self):
+        import os
+        tmp = make_tmpdir()
+        try:
+            f = os.path.join(tmp, "a.txt")
+            write_txt(f, "遥控失败 相关内容")
+            idx = indexer.Indexer(os.path.join(tmp, "c.db"))
+            count, _ = idx.load_folders([tmp], {".txt"}, ocr=False)
+            self.assertEqual(count, 1)
+            c = idx.corpus()
+            self.assertIn(f, c)
+            st = os.stat(f)
+            self.assertEqual(c[f]["mtime"], int(st.st_mtime))
+            self.assertEqual(c[f]["size"], st.st_size)
+            self.assertIn("遥控失败", c[f]["text"])
+        finally:
+            import shutil
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()

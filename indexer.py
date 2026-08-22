@@ -23,6 +23,9 @@ class Indexer:
         self.cache_path = cache_path
         # Flask 多线程处理请求，连接需跨线程共享：关闭同线程检查 + 用锁串行化访问
         self.conn = sqlite3.connect(cache_path, check_same_thread=False)
+        # 双连接并发写同一库，WAL+等待避免 locked
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA busy_timeout=5000")
         self.lock = threading.RLock()
         self._init_db()
         self.cache = {}        # path -> {name, ext, text, meta}
@@ -135,6 +138,8 @@ class Indexer:
                     "ext": ext,
                     "text": text or "",
                     "meta": meta,
+                    "mtime": int(st.st_mtime),
+                    "size": st.st_size,
                 }
                 stats["by_ext"][ext] = stats["by_ext"].get(ext, 0) + 1
                 if meta.get("ocr_used"):
@@ -146,6 +151,12 @@ class Indexer:
 
         self.conn.commit()
         return len(self.cache), stats
+
+    def corpus(self):
+        """语义索引用的语料快照：path -> {text, mtime, size}。"""
+        with self.lock:
+            return {p: {"text": i["text"], "mtime": i["mtime"], "size": i["size"]}
+                    for p, i in self.cache.items()}
 
     def search(self, keyword):
         with self.lock:

@@ -4,6 +4,9 @@ const pickBtn = $('#pickBtn');
 const pathListEl = $('#pathList'), statusEl = $('#status');
 const kwIn = $('#kw'), countEl = $('#resultCount'), resultsEl = $('#results'), emptyEl = $('#empty');
 const modal = $('#modal'), frame = $('#frame'), modalTitle = $('#modalTitle');
+const semSection = $('#semanticSection'), semStatusEl = $('#semStatus'),
+      semResultsEl = $('#semResults'), semEmptyEl = $('#semEmpty');
+let semPollTimer = null;
 
 let paths = [];
 
@@ -88,6 +91,7 @@ async function loadAll() {
     if (d.stats.ocr_used) parts.push(d.stats.ocr_used + ' 个用了 OCR');
     if (d.stats.errors && d.stats.errors.length) parts.push(d.stats.errors.length + ' 个解析异常');
     statusEl.textContent = parts.join('  ｜  ');
+    pollSemantic();
     kwIn.focus();
   } catch (e) {
     statusEl.textContent = '加载出错：' + e;
@@ -104,8 +108,14 @@ async function doSearch() {
     resultsEl.innerHTML = ''; countEl.textContent = '';
     emptyEl.style.display = 'block';
     emptyEl.textContent = '输入关键词开始搜索。';
+    semSection.classList.add('hidden');
     return;
   }
+  doSearchExact(kw);
+  doSearchSemantic(kw);
+}
+
+async function doSearchExact(kw) {
   const r = await fetch('/api/search?kw=' + encodeURIComponent(kw));
   const d = await r.json();
   countEl.textContent = '找到 ' + d.length + ' 个文档';
@@ -127,14 +137,60 @@ async function doSearch() {
         ${it.ocr_used ? `<span class="badge ocr">OCR</span>` : ''}
         <span class="meta">命中 ${it.count} 次</span>
         <button class="prev" data-path="${esc(it.path)}">预览原文</button>
+        <button class="prev opendir" data-path="${esc(it.path)}">打开目录</button>
+        <button class="prev openwps" data-path="${esc(it.path)}">WPS打开</button>
       </div>
       <div class="dir" title="${esc(it.path)}">${esc(dir)}</div>
       <div class="snips">${it.snippets.map((s) => `<div class="snip">${highlight(s, kw)}</div>`).join('')}</div>
     </li>`;
   }).join('');
-  resultsEl.querySelectorAll('.prev').forEach((btn) => {
+  resultsEl.querySelectorAll('.prev:not(.opendir):not(.openwps)').forEach((btn) => {
     btn.onclick = () => openPreview(btn.dataset.path, kw);
   });
+}
+
+async function doSearchSemantic(kw) {
+  semSection.classList.remove('hidden');
+  semStatusEl.textContent = '搜索中…';
+  try {
+    const d = await (await fetch('/api/semantic_search?kw=' + encodeURIComponent(kw))).json();
+    if (!d.ok) {
+      semResultsEl.innerHTML = '';
+      semStatusEl.textContent = '';
+      semEmptyEl.style.display = 'block';
+      semEmptyEl.textContent = d.error || '语义搜索不可用（精确搜索不受影响）';
+      return;
+    }
+    semStatusEl.textContent = d.results.length ? '相关段落 ' + d.results.length + ' 条（按相似度排序）' : '';
+    if (!d.results.length) {
+      semResultsEl.innerHTML = '';
+      semEmptyEl.style.display = 'block';
+      semEmptyEl.textContent = '没有语义相关的段落。';
+      return;
+    }
+    semEmptyEl.style.display = 'none';
+    semResultsEl.innerHTML = d.results.map((it) => {
+      const dir = it.path.replace(/[\\/][^\\/]+$/, '');
+      return `
+      <li>
+        <div class="row1">
+          <span class="name">${esc(it.name)}</span>
+          <span class="badge">${esc(it.ext)}</span>
+          <span class="meta">相似度 ${Math.round(it.score * 100)}%</span>
+          <button class="prev" data-path="${esc(it.path)}">预览原文</button>
+          <button class="prev opendir" data-path="${esc(it.path)}">打开目录</button>
+          <button class="prev openwps" data-path="${esc(it.path)}">WPS打开</button>
+        </div>
+        <div class="dir" title="${esc(it.path)}">${esc(dir)}</div>
+        <div class="snips"><div class="snip">${esc(it.text)}</div></div>
+      </li>`;
+    }).join('');
+    semResultsEl.querySelectorAll('.prev:not(.opendir):not(.openwps)').forEach((btn) => {
+      btn.onclick = () => openPreview(btn.dataset.path, kw);
+    });
+  } catch (e) {
+    semStatusEl.textContent = '语义搜索出错：' + e;
+  }
 }
 
 function openPreview(path, kw) {
@@ -146,6 +202,57 @@ $('#closeModal').onclick = () => { modal.classList.add('hidden'); frame.src = 'a
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { modal.classList.add('hidden'); frame.src = 'about:blank'; }
 });
+
+async function openPath(path, mode) {
+  try {
+    const r = await fetch('/api/open', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, mode }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast(d.method === 'default' ? '未找到 WPS，已用系统默认应用打开' : '已打开');
+    } else {
+      toast(d.error || '打开失败');
+    }
+  } catch (e) {
+    toast('打开出错：' + e);
+  }
+}
+
+// 事件委托：精确与语义两栏的打开按钮统一处理
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.classList.contains('opendir')) openPath(b.dataset.path, 'folder');
+  else if (b.classList.contains('openwps')) openPath(b.dataset.path, 'wps');
+});
+
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.add('hidden'), 2500);
+}
+
+function pollSemantic() {
+  clearInterval(semPollTimer);
+  const tick = async () => {
+    try {
+      const d = await (await fetch('/api/semantic_status')).json();
+      if (d.building) {
+        semSection.classList.remove('hidden');
+        semStatusEl.textContent = '语义索引构建中：' + d.done + '/' + d.total;
+      } else {
+        clearInterval(semPollTimer);
+        semStatusEl.textContent = d.available ? '语义索引就绪' : (d.error || '语义搜索不可用');
+      }
+    } catch (e) { /* 轮询失败忽略，下个周期重试 */ }
+  };
+  tick();
+  semPollTimer = setInterval(tick, 2000);
+}
 
 (async () => {
   try {

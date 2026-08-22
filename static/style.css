@@ -43,3 +43,14 @@ mark { background: #ffe66d; border-radius: 3px; padding: 0 1px; }
 .modal-bar { background: #fff; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #eceef1; }
 .modal-bar span { font-weight: 600; font-size: 14px; word-break: break-all; }
 .frame { flex: 1; border: 0; background: #fff; width: 100%; }
+
+/* 语义搜索分栏 */
+.semantic { margin-top: 18px; }
+.sem-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.semantic h2 { font-size: 16px; margin: 0; }
+#semanticSection.hidden, .toast.hidden { display: none; }
+
+/* 打开结果 toast */
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+  background: #2b2f36; color: #fff; padding: 8px 16px; border-radius: 8px;
+  font-size: 13px; z-index: 200; box-shadow: 0 4px 14px rgba(0,0,0,.25); }

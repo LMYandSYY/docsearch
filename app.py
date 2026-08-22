@@ -18,6 +18,8 @@ from werkzeug.exceptions import HTTPException
 
 import extractor
 from indexer import Indexer
+import opener
+from semantic import SemanticIndex
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 PORT = 8765
@@ -26,6 +28,7 @@ SETTINGS_FILE = os.path.join(BASE, "settings.json")
 
 app = Flask(__name__)
 indexer = Indexer(os.path.join(BASE, "cache.db"))
+semantic = SemanticIndex(os.path.join(BASE, "cache.db"))  # 与 indexer 共用 cache.db
 
 
 def load_settings():
@@ -119,6 +122,8 @@ def api_load():
     if not indexer.folders:
         return jsonify({"ok": False, "error": "没有有效的文件夹路径：" + "、".join(folders)}), 400
     save_settings(folders, ocr)
+    # 精确索引已就绪即可搜索；语义向量放后台线程补建（文件没变会复用缓存）
+    threading.Thread(target=semantic.ensure, args=(indexer.corpus(),), daemon=True).start()
     return jsonify({"ok": True, "count": count, "stats": stats, "folders": indexer.folders})
 
 
@@ -158,6 +163,32 @@ def preview():
     except Exception as e:  # noqa: BLE001
         body = "<p>预览失败：" + html_mod.escape(repr(e)) + "</p>"
     return render_template("preview.html", title=os.path.basename(path), body_html=body, kw=kw)
+
+
+@app.get("/api/semantic_search")
+def api_semantic_search():
+    kw = (request.args.get("kw") or "").strip()
+    if not kw:
+        return jsonify({"ok": True, "results": []})
+    return jsonify(semantic.search(kw))
+
+
+@app.get("/api/semantic_status")
+def api_semantic_status():
+    return jsonify(semantic.status())
+
+
+@app.post("/api/open")
+def api_open():
+    data = request.get_json(silent=True) or {}
+    path, mode = data.get("path"), data.get("mode")
+    if not path or not os.path.isfile(path):
+        return jsonify({"ok": False, "error": "文件不存在：" + str(path)}), 404
+    if mode == "folder":
+        return jsonify(opener.open_folder(path))
+    if mode == "wps":
+        return jsonify(opener.open_with_wps(path))
+    return jsonify({"ok": False, "error": "mode 必须是 folder 或 wps"}), 400
 
 
 def _open_browser():
