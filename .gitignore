@@ -4,7 +4,11 @@ __pycache__/
 *$py.class
 
 cache.db
+cache.db-shm
+cache.db-wal
 settings.json
+
+.idea/
 
 .DS_Store
 Thumbs.db
